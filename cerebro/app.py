@@ -18,6 +18,7 @@ from pydantic import BaseModel
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://ollama:11434")
 MODELO_CHAT = os.environ.get("MODELO_CHAT", "qwen2.5:3b")
 MODELO_EMBED = os.environ.get("MODELO_EMBED", "nomic-embed-text")
+MODELO_VISION = os.environ.get("MODELO_VISION", "qwen2.5vl:3b")
 RUTA_DATOS = os.environ.get("RUTA_DATOS", "/datos/chroma")
 # "cliente1:clave1,cliente2:clave2". Vacío = sin claves (solo para uso local).
 CLAVES = dict(par.split(":", 1) for par in os.environ.get("CLAVES", "").split(",") if ":" in par)
@@ -60,6 +61,12 @@ class PedidoInterpretar(BaseModel):
     tenant_id: str
     orden: str
     botones: list[Boton]
+
+
+class PedidoFoto(BaseModel):
+    tenant_id: str
+    imagen_base64: str
+    pregunta: str = ""
 
 
 class PedidoCargar(BaseModel):
@@ -138,6 +145,60 @@ def interpretar(p: PedidoInterpretar, x_clave: str = Header("")):
     b = p.botones[indice]
     return {"accion": "tocar", "origen": origen, "nombre": b.nombre, "x": b.x, "y": b.y,
             "respuesta": respuesta or f"Tocando {b.nombre}."}
+
+
+AVISO_REMEDIO = " Antes de tomarlo, confirmalo con tu médico o farmacéutico."
+TIPOS_FOTO = {"remedio", "factura", "carta", "otro", "ilegible"}
+
+
+def mirar_foto(imagen, pregunta, contexto):
+    prompt = (
+        "Sos los ojos de una persona con baja visión. Mirá la foto y ayudala.\n"
+        "Reglas: leé el texto tal cual está impreso, NO inventes números ni datos. "
+        "Si algo no se lee claro, decilo. Hablá simple, en español argentino, máximo 3 frases.\n"
+        "- Remedio: nombre, miligramos y lo que diga la caja sobre la dosis.\n"
+        "- Factura: cuánto hay que pagar y hasta qué fecha.\n"
+        "- Carta: quién la manda y qué pide.\n"
+        + (f"Pregunta de la persona: {pregunta}\n" if pregunta else "")
+        + (f"Datos que cargó la familia:\n{contexto}\n" if contexto else "")
+        + 'Respondé SOLO un JSON: {"tipo": "remedio|factura|carta|otro|ilegible", '
+        '"respuesta": "<lo que se le dice en voz alta>"}'
+    )
+    r = requests.post(f"{OLLAMA_URL}/api/chat", json={
+        "model": MODELO_VISION,
+        "messages": [{"role": "user", "content": prompt, "images": [imagen]}],
+        "format": "json",
+        "stream": False,
+        "options": {"temperature": 0},
+    }, timeout=300)
+    r.raise_for_status()
+    return json.loads(r.json()["message"]["content"])
+
+
+@app.post("/leer_foto")
+def leer_foto(p: PedidoFoto, x_clave: str = Header("")):
+    """Lee un papel o un remedio. El código, no el modelo, agrega el aviso de los remedios."""
+    col = coleccion(p.tenant_id, x_clave)
+    if not 100 < len(p.imagen_base64) < 12_000_000:
+        raise HTTPException(400, "Imagen vacía o demasiado grande")
+    try:
+        contexto = ""
+        if col.count():
+            consulta = p.pregunta or "remedios, dosis y datos de la persona"
+            res = col.query(query_embeddings=embeber([consulta]), n_results=min(3, col.count()))
+            contexto = "\n".join(res["documents"][0])
+        salida = mirar_foto(p.imagen_base64, p.pregunta, contexto)
+        tipo = salida.get("tipo") if salida.get("tipo") in TIPOS_FOTO else "otro"
+        respuesta = str(salida.get("respuesta") or "").strip()[:600]
+    except (requests.RequestException, ValueError, KeyError, AttributeError):
+        return {"tipo": "error", "respuesta": "No pude leer la foto ahora. Probá de nuevo en un rato."}
+
+    if tipo == "ilegible" or not respuesta:
+        return {"tipo": "ilegible",
+                "respuesta": "No se lee bien. Acercá un poco más el papel, con buena luz, y probá de nuevo."}
+    if tipo == "remedio":
+        respuesta += AVISO_REMEDIO
+    return {"tipo": tipo, "respuesta": respuesta}
 
 
 @app.post("/rag/{tenant_id}/cargar")

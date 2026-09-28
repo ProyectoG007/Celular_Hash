@@ -16,7 +16,7 @@ services:
     depends_on: [ollama]
     environment:
       OLLAMA_HOST: http://ollama:11434
-    entrypoint: ["sh", "-c", "sleep 5 && ollama pull ${MODELO_CHAT:-qwen2.5:3b} && ollama pull ${MODELO_EMBED:-nomic-embed-text}"]
+    entrypoint: ["sh", "-c", "sleep 5 && ollama pull ${MODELO_CHAT:-qwen2.5:3b} && ollama pull ${MODELO_EMBED:-nomic-embed-text} && ollama pull ${MODELO_VISION:-qwen2.5vl:3b}"]
     restart: "no"
 
   cerebro:
@@ -26,6 +26,7 @@ services:
       OLLAMA_URL: http://ollama:11434
       MODELO_CHAT: ${MODELO_CHAT:-qwen2.5:3b}
       MODELO_EMBED: ${MODELO_EMBED:-nomic-embed-text}
+      MODELO_VISION: ${MODELO_VISION:-qwen2.5vl:3b}
       CLAVES: ${CLAVES:-}
     volumes:
       - datos_rag:/datos

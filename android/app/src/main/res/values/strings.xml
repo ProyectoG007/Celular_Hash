@@ -2,4 +2,5 @@
 <resources>
     <string name="app_name">Asistente Celular Hash</string>
     <string name="descripcion_servicio">Tocá el botón de accesibilidad y decí una orden, por ejemplo \"abrí WhatsApp\" o \"qué hay en pantalla\". El asistente lee la pantalla y toca el botón por vos.</string>
+    <string name="leer_papel">Leer papel</string>
 </resources>

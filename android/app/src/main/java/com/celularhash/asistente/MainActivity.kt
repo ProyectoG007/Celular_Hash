@@ -38,8 +38,10 @@ class MainActivity : Activity() {
             }
         }
         val microfono = Button(this).apply {
-            text = "1. Permitir micrófono"
-            setOnClickListener { requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1) }
+            text = "1. Permitir micrófono y cámara"
+            setOnClickListener {
+                requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA), 1)
+            }
         }
         val accesibilidad = Button(this).apply {
             text = "2. Activar el asistente (Accesibilidad)"
@@ -47,7 +49,8 @@ class MainActivity : Activity() {
         }
         val ayuda = TextView(this).apply {
             text = "Después, tocá el botón de accesibilidad (abajo en la pantalla) " +
-                "y decí una orden: \"abrí WhatsApp\", \"qué hay en pantalla\"."
+                "y decí una orden: \"abrí WhatsApp\", \"qué hay en pantalla\", \"leé este papel\".\n\n" +
+                "O usá el ícono \"Leer papel\": apuntás y tocás la pantalla."
             setPadding(0, 32, 0, 0)
         }
 

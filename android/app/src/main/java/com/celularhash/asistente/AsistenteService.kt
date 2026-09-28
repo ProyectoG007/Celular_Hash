@@ -4,7 +4,6 @@ import android.Manifest
 import android.accessibilityservice.AccessibilityButtonController
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Path
@@ -24,8 +23,6 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.Locale
 import java.util.concurrent.Executors
 
@@ -125,7 +122,12 @@ class AsistenteService : AccessibilityService() {
     private fun procesar(orden: String) {
         val elementos = leerPantalla()
         val o = orden.lowercase()
-        if (listOf("qué hay", "que hay", "leer", "leé", "describ").any { it in o }) {
+        if (listOf("foto", "cámara", "camara", "papel", "remedio", "factura", "carta", "leé esto", "lee esto").any { it in o }) {
+            ocupado = false
+            startActivity(Intent(this, CamaraActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            return
+        }
+        if (listOf("qué hay", "que hay", "pantalla", "describ").any { it in o }) {
             terminar(describir(elementos))
             return
         }
@@ -194,35 +196,18 @@ class AsistenteService : AccessibilityService() {
 
     /** Devuelve (botón o null, frase), o null si el cerebro no responde. Corre fuera del hilo principal. */
     private fun preguntarAlCerebro(orden: String, elementos: List<Elemento>): Pair<Elemento?, String>? {
-        val prefs = getSharedPreferences(Config.PREFS, Context.MODE_PRIVATE)
-        val base = prefs.getString(Config.URL, null)?.takeIf { it.startsWith("http") } ?: return null
-        return try {
-            val cuerpo = JSONObject()
-                .put("tenant_id", prefs.getString(Config.TENANT, "demo"))
-                .put("orden", orden)
-                .put("botones", JSONArray().apply {
-                    elementos.forEach { put(JSONObject().put("nombre", it.nombre).put("x", it.x).put("y", it.y)) }
-                })
-            val con = (URL("$base/interpretar").openConnection() as HttpURLConnection).apply {
-                requestMethod = "POST"
-                connectTimeout = 5000
-                readTimeout = 60000
-                doOutput = true
-                setRequestProperty("Content-Type", "application/json")
-                setRequestProperty("X-Clave", prefs.getString(Config.CLAVE, ""))
-            }
-            con.outputStream.use { it.write(cuerpo.toString().toByteArray()) }
-            if (con.responseCode != 200) return null
-            val datos = JSONObject(con.inputStream.bufferedReader().use { it.readText() })
-            val frase = datos.optString("respuesta")
-            if (datos.optString("accion") != "tocar") return null to frase
-            val x = datos.getInt("x")
-            val y = datos.getInt("y")
-            // Solo se toca un botón que realmente está en la pantalla.
-            elementos.firstOrNull { it.x == x && it.y == y } to frase
-        } catch (e: Exception) {
-            null
-        }
+        val cuerpo = JSONObject()
+            .put("orden", orden)
+            .put("botones", JSONArray().apply {
+                elementos.forEach { put(JSONObject().put("nombre", it.nombre).put("x", it.x).put("y", it.y)) }
+            })
+        val datos = Cerebro.post(this, "/interpretar", cuerpo) ?: return null
+        val frase = datos.optString("respuesta")
+        if (datos.optString("accion") != "tocar") return null to frase
+        val x = datos.optInt("x", -1)
+        val y = datos.optInt("y", -1)
+        // Solo se toca un botón que realmente está en la pantalla.
+        return elementos.firstOrNull { it.x == x && it.y == y } to frase
     }
 
     private fun tocar(e: Elemento) {

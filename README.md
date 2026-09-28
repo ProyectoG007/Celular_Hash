@@ -128,6 +128,13 @@ cerebro en el servidor; si no hay conexión, usa la búsqueda por texto local.
 4. Tocar el botón de accesibilidad de la pantalla: vibra y suena un pitido,
    y ahí se dice la orden ("abrí WhatsApp", "qué hay en pantalla").
 
+**Leer papeles y remedios:** ícono "Leer papel" (o decir "leé este papel").
+La pantalla entera es la cámara: se apunta y se toca en cualquier lado. El cerebro
+lo lee con un modelo de visión (`qwen2.5vl:3b`) y lo dice en voz alta y en letra
+grande. En remedios, el código siempre agrega "confirmalo con tu médico o
+farmacéutico". Necesita internet (el servidor). Los datos que cargue la familia
+en el RAG del cliente (ej. "toma Enalapril 10 mg a la mañana") se usan como contexto.
+
 Compilar: `cd android && ./gradlew assembleDebug` (sale en `app/build/outputs/apk/debug/`).
 
 ## Cerebro en un servidor (para clientes)

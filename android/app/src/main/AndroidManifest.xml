@@ -4,6 +4,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <!-- Android 11+: sin esto la app no ve el reconocedor de voz del sistema -->
     <queries>
@@ -22,6 +24,19 @@
         <activity
             android:name=".MainActivity"
             android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Segundo ícono en el celular: "Leer papel", abre directo la cámara. -->
+        <activity
+            android:name=".CamaraActivity"
+            android:exported="true"
+            android:label="@string/leer_papel"
+            android:screenOrientation="portrait"
+            android:taskAffinity=".camara">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
