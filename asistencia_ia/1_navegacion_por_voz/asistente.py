@@ -1,5 +1,7 @@
-import subprocess
+import os
 import sys
+
+import requests
 
 from lector_pantalla import (
     ADB,
@@ -10,6 +12,10 @@ from lector_pantalla import (
 )
 from oido import escuchar_orden
 from voz import hablar
+
+# Cerebro en Docker (docker compose up -d). Si no responde, se usa la búsqueda local.
+CEREBRO_URL = os.environ.get("CEREBRO_URL", "http://127.0.0.1:8000")
+TENANT_ID = os.environ.get("TENANT_ID", "demo")
 
 if sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
@@ -39,6 +45,23 @@ def buscar_boton_por_orden(orden, tocables):
     return mejor_candidato
 
 
+def preguntar_al_cerebro(orden, tocables):
+    """Devuelve (boton o None, frase para decir), o None si el cerebro no responde."""
+    try:
+        r = requests.post(f"{CEREBRO_URL}/interpretar", json={
+            "tenant_id": TENANT_ID,
+            "orden": orden,
+            "botones": [{"nombre": b["nombre"], "x": b["x"], "y": b["y"]} for b in tocables],
+        }, timeout=60)
+        r.raise_for_status()
+        datos = r.json()
+    except requests.RequestException:
+        return None
+    if datos["accion"] == "tocar":
+        return {"nombre": datos["nombre"], "x": datos["x"], "y": datos["y"]}, datos["respuesta"]
+    return None, datos["respuesta"]
+
+
 def ejecutar_asistente():
     orden = escuchar_orden()
     if not orden:
@@ -53,15 +76,21 @@ def ejecutar_asistente():
     elementos = parsear_interfaz("window_dump.xml")
     tocables, _ = priorizar_elementos(elementos)
 
-    boton = buscar_boton_por_orden(orden, tocables)
+    del_cerebro = preguntar_al_cerebro(orden, tocables)
+    if del_cerebro is None:
+        print("(Cerebro no disponible, uso búsqueda local)")
+        boton = buscar_boton_por_orden(orden, tocables)
+        mensaje = None
+    else:
+        boton, mensaje = del_cerebro
 
     if boton is None:
-        mensaje = f"Dijiste '{orden}', pero no encontré ningún botón que coincida en esta pantalla."
+        mensaje = mensaje or f"Dijiste '{orden}', pero no encontré ningún botón que coincida en esta pantalla."
         print(mensaje)
         hablar(mensaje)
         return
 
-    mensaje = f"Tocando {boton['nombre']}."
+    mensaje = mensaje or f"Tocando {boton['nombre']}."
     print(mensaje)
     hablar(mensaje)
     adb_comando(["shell", "input", "tap", str(boton["x"]), str(boton["y"])])

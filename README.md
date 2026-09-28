@@ -17,6 +17,8 @@ Celular_Hash/
 ├── Gemini-Arquitectura local de voz-*.md   # Chat original de Gemini (ideas teóricas, no todo probado)
 ├── platform-tools/                          # ADB (Android Debug Bridge), oficial de Google
 ├── venv/                                     # Entorno virtual Python, aislado del resto de la PC
+├── cerebro/                                  # Cerebro en Docker: FastAPI + Ollama + RAG por cliente
+├── docker-compose.yml                        # Levanta Ollama y el cerebro
 ├── asistencia_ia/
 │   └── 1_navegacion_por_voz/                # Proyecto activo: asistente de voz + control de celular
 │       ├── lector_pantalla.py               # Ve la pantalla del celular y la describe
@@ -87,6 +89,31 @@ El programa:
 - `python lector_pantalla.py` — solo ve la pantalla del celular y la describe en voz.
 - `python oido.py` — solo escucha el micrófono y muestra qué entendió.
 - `python voz.py` (no tiene modo standalone útil; se usa como módulo importado).
+
+## Cerebro en Docker (modelo + RAG por cliente)
+
+El celular, el micrófono y la voz quedan en Windows. En Docker va el cerebro:
+Ollama (modelo `qwen2.5:3b`) + FastAPI + RAG (Chroma), con datos separados por cliente.
+
+```bash
+# Desde Celular_Hash/, con Docker Desktop abierto
+docker compose up -d          # la primera vez baja ~2.5 GB de modelos
+curl http://127.0.0.1:8000/salud
+```
+
+Después se corre `asistente.py` igual que siempre. Si el cerebro no responde,
+usa la búsqueda local de antes. Variables opcionales en Windows:
+`TENANT_ID` (cliente, por defecto `demo`) y `CEREBRO_URL`.
+
+Cargar datos de un cliente al RAG:
+
+```bash
+curl -X POST http://127.0.0.1:8000/rag/ferreteria_01/cargar \
+  -H "Content-Type: application/json" -d "{\"textos\": [\"Martillo: 5000 pesos\"]}"
+```
+
+El modelo solo devuelve un JSON con el número de botón; el código verifica que
+ese botón exista antes de tocarlo.
 
 ## Notas importantes de uso
 
