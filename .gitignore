@@ -1,0 +1,13 @@
+# Entorno virtual y binarios de terceros (se reinstalan)
+venv/
+.venv/
+platform-tools/
+__pycache__/
+*.pyc
+
+# Modelo de voz Vosk (pesado, se descarga aparte)
+asistencia_ia/1_navegacion_por_voz/modelo_voz_es/
+
+# Secretos
+.env
+.env.*
