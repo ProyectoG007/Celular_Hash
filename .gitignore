@@ -11,3 +11,9 @@ asistencia_ia/1_navegacion_por_voz/modelo_voz_es/
 # Secretos
 .env
 .env.*
+
+# Android (se generan al compilar)
+android/local.properties
+android/.gradle/
+android/build/
+android/app/build/

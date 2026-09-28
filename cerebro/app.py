@@ -5,19 +5,22 @@ ese JSON antes de devolverlo: si el modelo inventa un botón que no existe,
 la respuesta se descarta y se usa la búsqueda simple por texto.
 Cada cliente (tenant_id) tiene su propia colección en el RAG.
 """
+import hmac
 import json
 import os
 import re
 
 import chromadb
 import requests
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://ollama:11434")
 MODELO_CHAT = os.environ.get("MODELO_CHAT", "qwen2.5:3b")
 MODELO_EMBED = os.environ.get("MODELO_EMBED", "nomic-embed-text")
 RUTA_DATOS = os.environ.get("RUTA_DATOS", "/datos/chroma")
+# "cliente1:clave1,cliente2:clave2". Vacío = sin claves (solo para uso local).
+CLAVES = dict(par.split(":", 1) for par in os.environ.get("CLAVES", "").split(",") if ":" in par)
 
 app = FastAPI(title="Celular_Hash - Cerebro Central")
 _db = None
@@ -31,9 +34,12 @@ def db():
     return _db
 
 
-def coleccion(tenant_id):
+def coleccion(tenant_id, clave):
     if not re.fullmatch(r"[a-z0-9_-]{3,40}", tenant_id):
         raise HTTPException(400, "tenant_id inválido: usar minúsculas, números, - o _")
+    if CLAVES and (tenant_id not in CLAVES
+                   or not hmac.compare_digest(CLAVES[tenant_id].encode(), (clave or "").encode())):
+        raise HTTPException(401, "Cliente o clave incorrectos")
     return db().get_or_create_collection(f"tenant_{tenant_id}")
 
 
@@ -107,10 +113,10 @@ def salud():
 
 
 @app.post("/interpretar")
-def interpretar(p: PedidoInterpretar):
+def interpretar(p: PedidoInterpretar, x_clave: str = Header("")):
     """Devuelve qué botón tocar. Nunca devuelve un botón que no esté en la lista."""
     contexto = ""
-    col = coleccion(p.tenant_id)
+    col = coleccion(p.tenant_id, x_clave)
     try:
         if col.count():
             res = col.query(query_embeddings=embeber([p.orden]), n_results=min(3, col.count()))
@@ -135,8 +141,8 @@ def interpretar(p: PedidoInterpretar):
 
 
 @app.post("/rag/{tenant_id}/cargar")
-def rag_cargar(tenant_id: str, p: PedidoCargar):
-    col = coleccion(tenant_id)
+def rag_cargar(tenant_id: str, p: PedidoCargar, x_clave: str = Header("")):
+    col = coleccion(tenant_id, x_clave)
     textos = [t for t in p.textos if t.strip()]
     if not textos:
         raise HTTPException(400, "No hay textos para cargar")
@@ -147,8 +153,8 @@ def rag_cargar(tenant_id: str, p: PedidoCargar):
 
 
 @app.post("/rag/{tenant_id}/consultar")
-def rag_consultar(tenant_id: str, p: PedidoConsultar):
-    col = coleccion(tenant_id)
+def rag_consultar(tenant_id: str, p: PedidoConsultar, x_clave: str = Header("")):
+    col = coleccion(tenant_id, x_clave)
     if not col.count():
         return {"resultados": []}
     res = col.query(query_embeddings=embeber([p.pregunta]),

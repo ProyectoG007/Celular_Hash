@@ -19,6 +19,7 @@ Celular_Hash/
 ├── venv/                                     # Entorno virtual Python, aislado del resto de la PC
 ├── cerebro/                                  # Cerebro en Docker: FastAPI + Ollama + RAG por cliente
 ├── docker-compose.yml                        # Levanta Ollama y el cerebro
+├── android/                                  # App del celular: voz + lectura + toques, sin PC
 ├── asistencia_ia/
 │   └── 1_navegacion_por_voz/                # Proyecto activo: asistente de voz + control de celular
 │       ├── lector_pantalla.py               # Ve la pantalla del celular y la describe
@@ -114,6 +115,32 @@ curl -X POST http://127.0.0.1:8000/rag/ferreteria_01/cargar \
 
 El modelo solo devuelve un JSON con el número de botón; el código verifica que
 ese botón exista antes de tocarlo.
+
+## App Android (sin notebook)
+
+`android/` es una app que hace todo desde el propio celular: escucha por su
+micrófono, lee la pantalla, toca el botón y responde en voz alta. Le pregunta al
+cerebro en el servidor; si no hay conexión, usa la búsqueda por texto local.
+
+1. Instalar el APK en el celular.
+2. Abrir la app: cargar dirección del servidor, cliente y clave. Tocar "Guardar".
+3. "Permitir micrófono" y "Activar el asistente" (Ajustes > Accesibilidad).
+4. Tocar el botón de accesibilidad de la pantalla: vibra y suena un pitido,
+   y ahí se dice la orden ("abrí WhatsApp", "qué hay en pantalla").
+
+Compilar: `cd android && ./gradlew assembleDebug` (sale en `app/build/outputs/apk/debug/`).
+
+## Cerebro en un servidor (para clientes)
+
+En un VPS con Docker (mínimo 8 GB de RAM, sin GPU):
+
+```bash
+cp ejemplo.env .env      # poner DOMINIO y una clave por cliente en CLAVES
+docker compose --profile servidor up -d
+```
+
+Caddy saca el certificado HTTPS solo. Cada cliente usa su `tenant_id` y su
+clave; sus datos del RAG no se mezclan con los de otro.
 
 ## Notas importantes de uso
 

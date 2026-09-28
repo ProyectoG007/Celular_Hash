@@ -1,5 +1,6 @@
 # Cerebro en Docker. El celular (ADB), el micrófono y la voz quedan en Windows.
-# Arrancar:  docker compose up -d
+# Local:     docker compose up -d
+# Servidor:  docker compose --profile servidor up -d   (con DOMINIO y CLAVES en .env)
 services:
   ollama:
     image: ollama/ollama:latest
@@ -25,12 +26,27 @@ services:
       OLLAMA_URL: http://ollama:11434
       MODELO_CHAT: ${MODELO_CHAT:-qwen2.5:3b}
       MODELO_EMBED: ${MODELO_EMBED:-nomic-embed-text}
+      CLAVES: ${CLAVES:-}
     volumes:
       - datos_rag:/datos
     ports:
       - "127.0.0.1:8000:8000"
     restart: unless-stopped
 
+  # Solo en el servidor: HTTPS automático (Let's Encrypt) delante del cerebro.
+  caddy:
+    image: caddy:2
+    profiles: ["servidor"]
+    depends_on: [cerebro]
+    command: caddy reverse-proxy --from ${DOMINIO:-localhost} --to cerebro:8000
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_datos:/data
+    restart: unless-stopped
+
 volumes:
   ollama_modelos:
   datos_rag:
+  caddy_datos:
